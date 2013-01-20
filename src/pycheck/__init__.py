@@ -10,29 +10,10 @@ try:
     # python 3.3 and up:
     from collections.abc import Iterable
 except ImportError:
-    
     from collections import Iterable
-    
-    
-
-# TODO: passing callable objects (fuctions or objects, but not types/classes) is a pre-condition or post-condition check that must pass
-#     def( x: lambda x: x > 0 ) --> lambda y: y > x: ...
-#        --> use inspect.isclass, inspect.isfunction
-#
-#        ?? can second lambda refer to x? 
-#
-
-#def foo( x: lambda x: x > 0) -> lambda y: y > x:
-#    return x + 1
 
 #TODO: how to specify that return type is a tuple of heterogeneous types?
-
 #TODO: How to specify generators that yield specific types of objects?
-
-#TODO: f(x:(str,None)): # (type, None)
-
-#if __debug__:
-    
 
 if __debug__:
     def checked(f):
@@ -50,8 +31,12 @@ if __debug__:
         
         argspec = inspect.getfullargspec(f)
         
-        def get_name(obj):
-            return obj.__name__ if sys.version < '3.3.3' else obj.__qualname__
+        if sys.version < '3.3.3':
+            def get_name(obj):
+                return obj.__name__ 
+        else:
+            def get_name(obj):
+                obj.__qualname__
         
         def type_repr(type_declaration):
             try:
@@ -104,7 +89,7 @@ if __debug__:
             if not all( isinstance(item, declared_type) for item in collection ):
                 bad_types = set( type(i) for i in collection if type(i) is not declared_type )
                 bad_values = set( v for v in collection if type(v) in bad_types )
-                raise_error(position, argname, bad_values, declared_types=(declared_type,), actual_types=bad_types)
+                raise_error(position, argname, bad_values, declared_types={type(collection):declared_type}, actual_types=bad_types)
     
     
         def check_collection(position, argname, collection, type_declaration:Mapping):
@@ -243,7 +228,3 @@ if __debug__:
 else:
     def checked(f):
         return f
-
-#else:
-#    # turn these decorators into no-ops when debugging is off:
-#    checked = lambda f : f # TODO: the cast_rtype() functionality needs to be duplicated or code could break

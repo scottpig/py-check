@@ -4,6 +4,7 @@ Created on Dec 22, 2012
 @author: Scott Pigman
 '''
 import unittest
+import sys
 from pycheck import checked
 
 
@@ -79,9 +80,17 @@ def bad_default_val(x:int=1.0):
 
 class TestCase(unittest.TestCase):
 
-       
-    def test_docstring_preserved(self):
+    if sys.version < '3.2':
+        # assertRaisesRegex() is not available in this version, so just fall back to 
+        # standard assertRaises()
+        def assertRaisesRegex(self, excClass, regx, callableObj):
+            return self.assertRaises(excClass, callableObj)
         
+        # assertIsInstance() not available, so implement it:
+        def assertIsInstance(self, obj, expected_type):
+            return self.assertTrue(isinstance(obj, expected_type))
+       
+    def test_docstring_preserved(self):       
         self.assertEqual(int_to_int.__doc__, 'Docstring', int_to_int.__doc__ )
 
     def test_name_preserved(self):        
@@ -132,8 +141,6 @@ class TestCase(unittest.TestCase):
         self.assertRaises( TypeError, lambda: default_values(x=4.0,y=6) )
 
         self.assertRaises( TypeError, lambda: default_values(4.0,6.0) )
-
-
 
         self.assertIsInstance( default_values(5), int)
         self.assertIsInstance( default_values(4,3), int)
@@ -322,7 +329,7 @@ class TestCase(unittest.TestCase):
         self.assertRaises(TypeError, lambda: bad(1))
         
         
-    def test_multiple_w_none(self):
+    def test_type_or_none(self):
         @checked
         def f(x:(str,None))->(int,None):
             return len(x) if x else None
