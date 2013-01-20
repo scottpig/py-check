@@ -126,8 +126,7 @@ def raise_error(f, position, argname, argval, declared_types, actual_types=None,
                      "%(parameter)s%(positional_info)s%(argname)s"
                      "=%(value)s: "
                      + ("Declared type=<%(declared_types)s>, " if not condition else "")
-                     + ("actual type=<%(actual_types)s>." if not condition else "")
-                     
+                     + ("actual type=<%(actual_types)s>." if not condition else "")         
                      + (" Fails condition check." if condition else "")
                     ) % 
                     dict(func=get_name(f), 
