@@ -37,6 +37,10 @@ def int_to_none(x : int) -> None:
     pass
 
 @checked
+def accidently_returning_none(x) -> int:
+    return
+
+@checked
 def int_to_none_bad(x : int) -> None:
     return x # fails rtype test
 
@@ -336,6 +340,10 @@ class TestCase(unittest.TestCase):
         
         self.assertEqual(f("foo"), 3)
         self.assertEqual(f(None), None)
+        
+    def test_accidently_returning_none(self):
+        self.assertRaises(TypeDeclarationViolation, lambda: accidently_returning_none(1) )
+        self.assertRaisesRegex(TypeDeclarationViolation, r"accidently_returning_none\(\): return value=None: Declared type=<int>, actual type=<NoneType>\.", lambda: accidently_returning_none(1) )
         
 #    int_to_int(2.0)
 if __name__ == '__main__':

@@ -3,7 +3,6 @@ Created on Jan 20, 2013
 
 @author: Scott Pigman
 '''
-import sys
 from inspect import isfunction, ismethod 
 import itertools
 
@@ -18,21 +17,23 @@ except ImportError:
     # python < 3.3    
     from collections import Iterable, Mapping
     
-if sys.version < '3.3':
-    def get_name(obj):
-        return obj.__name__ 
-else:
+if hasattr(object, '__qualname__'):
+    # python 3.3+
     def get_name(obj):
         return obj.__qualname__
+else:
+    # python < 3.3
+    def get_name(obj):
+        return obj.__name__ 
 
-def type_repr(type_declaration):
+def get_type_str(type_declaration):
     try:
         return get_name(type_declaration)
     except AttributeError:
         return ('None' if type_declaration is None 
                 else ', '.join(get_name(t) for t in type_declaration) )
 
-def value_repr(value):
+def get_value_str(value):
     rep = str(value)
     if len(rep) > 32:
         rep = rep[:32] + '...'
@@ -59,7 +60,7 @@ def check_collection(f, position, argname, collection, type_declaration:Mapping)
         raise_error(f, position, argname, collection, declared_types=type_declaration.keys())
 
 
-def check_type(f, position, argname, argval, declared_type):
+def check_declaration(f, position, argname, argval, declared_type):
     
     none_is_valid = declared_type is None
                 
@@ -77,62 +78,6 @@ def check_type(f, position, argname, argval, declared_type):
                or isinstance(argval, declared_type)
                ):
         raise_error(f, position, argname, argval, declared_types=declared_type )
-            
-def check_arg_type(f, position, argname, argval, argspec):
-    if argname in argspec.annotations:
-        declared_type = argspec.annotations[argname]
-        check_type(f, position, argname, argval, declared_type)
-
-def check_kwd_type(f, argname, argval, argspec):
-    if argname in argspec.annotations:
-        # parameter is a "regular" parameter passed in as a kw:
-        # def f(x:int):
-        #    ...
-        # f(x=1) 
-        declared_type = argspec.annotations[argname]
-        check_type(f, None, argname, argval, declared_type)
-        
-    elif ( argname not in argspec.args # not a formally named parameter
-           and argspec.varkw in argspec.annotations ): # parameters list includes "**kwds"
-        
-        # must be kw only argname. argspec.varkw is the name of the 
-        # kw-only parameter:
-        #
-        # def f(**kwds):
-        #    ...
-        # f(x=1, y=2) # x & y will be handled by this branch
-        declared_type = argspec.annotations[ argspec.varkw ]
-        check_type(f, None, argname, argval, declared_type)
-        
-        
-def raise_error(f, position, argname, argval, declared_types, actual_types=None, condition=False):
-    if actual_types is None and not condition:
-        actual_types = type(argval)
-    raise TypeDeclarationViolation(
-                    (
-                     "%(func)s(): "
-                     "%(parameter)s%(positional_info)s%(argname)s"
-                     "=%(value)s: "
-                     + ("Declared type=<%(declared_types)s>, " if not condition else "")
-                     + ("actual type=<%(actual_types)s>." if not condition else "")
-                     
-                     + (" Fails condition check." if condition else "")
-                    ) % 
-                    dict(func=get_name(f), 
-                         parameter='Parameter ' if position is not None else '',
-                         positional_info="" if position is None else ("number %d, " % position), 
-                         argname=argname, 
-                         actual_types =type_repr(actual_types), 
-                         declared_types=type_repr(declared_types) if not condition else '', 
-                         value=value_repr(argval)
-                         )
-                    )
-
-#def raise_error_return_none(f, rvalue):
-#    raise TypeDeclarationViolation(
-#                     "%(func)s()->None returns <%(rvalue)s>"
-#                     % dict(func=get_name(f), rvalue=value_repr(rvalue))
-#                     )
 
 
 def check_return(f, rvalue, argspec):
@@ -165,18 +110,66 @@ def check_return(f, rvalue, argspec):
             raise TypeDeclarationViolation(
                 "%(func)s() -> <%(declared_rtype)s>: Actual type of return value, <%(rvalue)s>, is <%(actual_rtype)s>" 
                 % (dict(func=get_name(f), 
-                        declared_rtype=type_repr(rtype_declaration), 
-                        actual_rtype=type_repr(type(rvalue)),
-                        rvalue=value_repr(rvalue))))
+                        declared_rtype=get_type_str(rtype_declaration), 
+                        actual_rtype=get_type_str(type(rvalue)),
+                        rvalue=get_value_str(rvalue))))
+     
+    return rvalue 
+
+            
+def raise_error(f, position, argname, argval, declared_types, actual_types=None, condition=False):
+    if actual_types is None and not condition:
+        actual_types = type(argval)
+    raise TypeDeclarationViolation(
+                    (
+                     "%(func)s(): "
+                     "%(parameter)s%(positional_info)s%(argname)s"
+                     "=%(value)s: "
+                     + ("Declared type=<%(declared_types)s>, " if not condition else "")
+                     + ("actual type=<%(actual_types)s>." if not condition else "")
+                     
+                     + (" Fails condition check." if condition else "")
+                    ) % 
+                    dict(func=get_name(f), 
+                         parameter='Parameter ' if position is not None else '',
+                         positional_info="" if position is None else ("number %d, " % position), 
+                         argname=argname, 
+                         actual_types =get_type_str(actual_types), 
+                         declared_types=get_type_str(declared_types) if not condition else '', 
+                         value=get_value_str(argval)
+                         )
+                    )
+
+
+def check_arg(f, position, argname, argval, argspec):
+    if argname in argspec.annotations:
+        declared_type = argspec.annotations[argname]
+        check_declaration(f, position, argname, argval, declared_type)
+
+def check_kwd(f, argname, argval, argspec):
+    if argname in argspec.annotations:
+        # parameter is a "regular" parameter passed in as a kw:
+        # def f(x:int):
+        #    ...
+        # f(x=1) 
+        declared_type = argspec.annotations[argname]
+        check_declaration(f, None, argname, argval, declared_type)
         
-    return rvalue  
-
-
-
+    elif ( argname not in argspec.args # not a formally named parameter
+           and argspec.varkw in argspec.annotations ): # parameters list includes "**kwds"
+        
+        # must be kw only argname. argspec.varkw is the name of the 
+        # kw-only parameter:
+        #
+        # def f(**kwds):
+        #    ...
+        # f(x=1, y=2) # x & y will be handled by this branch
+        declared_type = argspec.annotations[ argspec.varkw ]
+        check_declaration(f, None, argname, argval, declared_type)
 
 def check_kwds(f, kwds, argspec):
     for argname in kwds:
-        check_kwd_type(f, argname, kwds[argname], argspec)
+        check_kwd(f, argname, kwds[argname], argspec)
                 
 def check_args(f, args, argspec): 
     # extra args are positional only "*args" type of parameters.
@@ -195,4 +188,4 @@ def check_args(f, args, argspec):
     # list will look something like [ ('x',1), '('y',2), ('args',3), ('args',4)...]
     position = itertools.count(1)
     for (position, argname, argval) in zip(position, argspec.args + varargs, args):
-        check_arg_type(f, position, argname, argval, argspec)        
+        check_arg(f, position, argname, argval, argspec)        

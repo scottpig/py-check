@@ -27,7 +27,6 @@ if __debug__:
             try:          
                 check_args(f, args, argspec)
                 check_kwds(f, kwds, argspec)
-                
             except TypeDeclarationViolation as e:
                 raise TypeDeclarationViolation(str(e)) from (None if sys.version >= '3.3' else e)                
     
@@ -37,8 +36,7 @@ if __debug__:
             rvalue = f(*args, **kwds)
 
             try:                
-                return check_return(f, rvalue, argspec)
-            
+                return check_return(f, rvalue, argspec) 
             except TypeDeclarationViolation as e:
                 raise TypeDeclarationViolation(str(e)) from (None if sys.version >= '3.3' else e)
             
