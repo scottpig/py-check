@@ -76,14 +76,12 @@ def checked_kwd(**kwds:int) -> int:
 def every_type_of_param(required:int, defaulted:float=4.5, *pos:str, **named:str):
     pass
 
-
-
 @checked
 def bad_default_val(x:int=1.0):
     pass
 
-class TestCase(unittest.TestCase):
-
+class OldVersionPatchMixin:
+    """Mixin class to add some functionality to TestCase which only comes about in 3.2+"""
     if sys.version < '3.2':
         # assertRaisesRegex() is not available in this version, so just fall back to 
         # standard assertRaises()
@@ -92,7 +90,11 @@ class TestCase(unittest.TestCase):
         
         # assertIsInstance() not available, so implement it:
         def assertIsInstance(self, obj, expected_type):
-            return self.assertTrue(isinstance(obj, expected_type))
+            return self.assertTrue(isinstance(obj, expected_type))    
+
+class TestCase(unittest.TestCase, OldVersionPatchMixin):
+
+
        
     def test_docstring_preserved(self):       
         self.assertEqual(int_to_int.__doc__, 'Docstring', int_to_int.__doc__ )
@@ -154,6 +156,7 @@ class TestCase(unittest.TestCase):
         
     def test_result_is_container(self):
         self.assertIsInstance(returns_good_set(), set)
+
     @unittest.skipUnless(__debug__, "Errors only raised in debug mode")
     def test_result_is_container_error(self):
         self.assertRaisesRegex(TypeDeclarationViolation, "XXX", returns_bad_set)
@@ -253,7 +256,7 @@ class TestCase(unittest.TestCase):
         self.assertRaises(TypeDeclarationViolation, lambda: every_type_of_param(1  ,2.0, '3', x=4)) 
 
 
-    def test_collections(self):
+    def test_collections_pass(self):
 
         @checked
         def collection_fcn(required:{set:int}, 
@@ -265,48 +268,79 @@ class TestCase(unittest.TestCase):
         
           
         self.assertIsNone(collection_fcn(set([1])) )
-        self.assertRaises(TypeDeclarationViolation, lambda: collection_fcn(set([1.0])) )
         
         self.assertIsNone(collection_fcn(required=set([1])) )
-        self.assertRaises(TypeDeclarationViolation, lambda: collection_fcn(required=set([1.0])) )
 
         self.assertIsNone(collection_fcn(set([1]), set([2.0]) ) )
         self.assertIsNone(collection_fcn(required=set([1]), defaulted=set([2.0]) ) )
         self.assertIsNone(collection_fcn(defaulted=set([1.0]), required=set([2]) ) )
         self.assertIsNone(collection_fcn(set([1]), defaulted=set([2.0]) ) )
 
+        
+        self.assertIsNone(collection_fcn(set([1]), set([2.0]), set(['3.0']), x=set([b'4.0'] ) ) )
+        
+        self.assertIsNone(collection_fcn(set([1]), set([2.0]), set(['3.0']), x=set([b'4.0'] ) ) )
+        
+        # passing bad collection type:
+        
+    @unittest.skipUnless(__debug__, "Errors only raised in debug mode")
+    def test_collections_fail(self):
+
+        @checked
+        def collection_fcn(required:{set:int}, 
+                           defaulted:{set:float}=set([1.0]), 
+                           *positional:{set:str},
+                           **named:{set:bytes}
+                           ) -> None:
+            return      
+        
+          
+        self.assertRaises(TypeDeclarationViolation, lambda: collection_fcn(set([1.0])) )
+        
+        self.assertRaises(TypeDeclarationViolation, lambda: collection_fcn(required=set([1.0])) )
+
+
         self.assertRaises(TypeDeclarationViolation, lambda: collection_fcn(set([1.0]), set([2.0])) )
         self.assertRaises(TypeDeclarationViolation, lambda: collection_fcn(set([1]), set([2])) )
         
-        self.assertIsNone(collection_fcn(set([1]), set([2.0]), set(['3.0']), x=set([b'4.0'] ) ) )
         self.assertRaises(TypeDeclarationViolation, lambda: collection_fcn(set([1]), set([2.0]), set([3.0])) )
         
-        self.assertIsNone(collection_fcn(set([1]), set([2.0]), set(['3.0']), x=set([b'4.0'] ) ) )
         self.assertRaises(TypeDeclarationViolation, lambda: collection_fcn(set([1]), set([2.0]), set(['3.0']), x=set([4.0])))
         
         # passing bad collection type:
         self.assertRaises(TypeDeclarationViolation, lambda: collection_fcn([1,2,3]) )
-        # collection_fcn([1,2,3])
-        # collection_fcn(set([1,2.0,'3']))
         
     @unittest.expectedFailure
     def test_bad_annotation(self):
         self.assertRaisesRegex(TypeDeclarationViolation, "^$", lambda: bad_default_val() )
-        
-    def test_preconditions(self):
-        
-        @checked
-        def f(x:lambda x: x>=0) -> (lambda y:y>0):
-            return x+1
 
-        @checked
-        def g(x:lambda x: x>=0) -> (lambda y:y>0):
-            return x-1 
+class TestPreconditions(unittest.TestCase, OldVersionPatchMixin):        
+     
+    @staticmethod   
+    @checked
+    def f(x:lambda x: x>=0) -> (lambda y:y>0):
+        return x+1
+
+    @staticmethod
+    @checked
+    def g(x:lambda x: x>=0) -> (lambda y:y>0):
+        return x-1 
                
-        self.assertEqual(f(0), 1)
+    def test_preconditions_pass(self):
+        self.assertEqual(self.f(0), 1)
+
+    @unittest.skipUnless(__debug__, "Errors only raised in debug mode")
+    def test_preconditions_fail(self):
         self.assertRaisesRegex(TypeDeclarationViolation, 
-                               r"(TestCase\.test_preconditions\.<locals>\.)?f\(\): Parameter number 1, x=-1:  Fails condition check\.", 
-                               lambda: f(-1))
+                               r"^(TestPreconditions\.)?f\(\): Parameter number 1, x=-1:  Fails condition check\.", 
+                               lambda: self.f(-1))
+        
+    @unittest.skipUnless(__debug__, "Errors only raised in debug mode")
+    def test_postconditions_fail(self):
+        self.assertRaisesRegex(TypeDeclarationViolation, 
+                               r"^(TestPreconditions\.)?g\(\): return value=-1:  Fails condition check\.", 
+                               lambda: self.g(0))
+        
         
     @unittest.skipUnless(__debug__, "Errors only raised in debug mode")
     def test_multiple_types(self):
@@ -341,6 +375,7 @@ class TestCase(unittest.TestCase):
         self.assertEqual(f("foo"), 3)
         self.assertEqual(f(None), None)
         
+    @unittest.skipUnless(__debug__, "Errors only raised in debug mode")
     def test_accidently_returning_none(self):
         self.assertRaises(TypeDeclarationViolation, lambda: accidently_returning_none(1) )
         self.assertRaisesRegex(TypeDeclarationViolation, r"accidently_returning_none\(\): return value=None: Declared type=<int>, actual type=<NoneType>\.", lambda: accidently_returning_none(1) )
