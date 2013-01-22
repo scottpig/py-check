@@ -60,7 +60,7 @@ def returns_good_set() -> {set:int}:
     return set([1,2,3,4,5])
 
 @checked
-def returns_bad_set() -> {set:int}:
+def returns_bad_set() -> {set:int}: # known issue -- error message for container containg element of wrong type is not clear
     return set([1,2,3,4,5.0])
 
 
@@ -159,6 +159,7 @@ class TestCase(unittest.TestCase, OldVersionPatchMixin):
 
     @unittest.skipUnless(__debug__, "Errors only raised in debug mode")
     def test_result_is_container_error(self):
+        # known issue -- error message for container containg element of wrong type is not clear
         self.assertRaisesRegex(TypeDeclarationViolation, "XXX", returns_bad_set)
         
     def test_checked_arg(self):
@@ -312,6 +313,8 @@ class TestCase(unittest.TestCase, OldVersionPatchMixin):
         
     @unittest.expectedFailure
     def test_bad_annotation(self):
+        # known limitation, there's now way currently to verify if the default value specified
+        # for a parameter violates the type declaration for that parameter.
         self.assertRaisesRegex(TypeDeclarationViolation, "^$", lambda: bad_default_val() )
 
 class TestPreconditions(unittest.TestCase, OldVersionPatchMixin):        
@@ -379,6 +382,28 @@ class TestPreconditions(unittest.TestCase, OldVersionPatchMixin):
     def test_accidently_returning_none(self):
         self.assertRaises(TypeDeclarationViolation, lambda: accidently_returning_none(1) )
         self.assertRaisesRegex(TypeDeclarationViolation, r"accidently_returning_none\(\): return value=None: Declared type=<int>, actual type=<NoneType>\.", lambda: accidently_returning_none(1) )
+
+class TestGenerators(unittest.TestCase, OldVersionPatchMixin):          
+
+        
+    @checked
+    def good_gen(self, x:int) -> float:
+        for i in range(x):
+            yield float(i)
+            
+    @checked
+    def bad_gen(self, x:int) -> float:
+        for i in range(x):
+            yield str(i)
+                
+    def test_generators_pass(self):        
+        self.assertEqual(len(list(self.good_gen(10))), 10)
+        
+    @unittest.skipUnless(__debug__, "Errors only raised in debug mode")
+    def test_generators_fail(self):
+        self.assertRaisesRegex(TypeDeclarationViolation, 
+                               "(TestPreconditions\.test_generators\.<locals>\.)?bad_gen\(\) -> <float>: Actual type of return value, <0>, is <str>", 
+                               lambda: list(self.bad_gen(10)) )
         
 #    int_to_int(2.0)
 if __name__ == '__main__':
