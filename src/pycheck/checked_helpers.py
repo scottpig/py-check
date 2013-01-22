@@ -8,7 +8,10 @@ import itertools
 
 
 class TypeDeclarationViolation(AssertionError):
-    pass
+    '''Indicates that the actual type of a paremter passed into
+    or returned from a function call does not match the declaration
+    indicated by the annotation.
+    '''
 
 try:
     # python 3.3+    
