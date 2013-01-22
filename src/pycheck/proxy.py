@@ -18,29 +18,48 @@ import inspect
 import importlib
 
 def type_proxy(typename):
-    """Proxy is used when an actual typename cannot be used becuase it is not yet
-    defined in the namespace and cannot be -- typically because of circular
-    references between types.
+    """type_proxy(typename) is used when an actual typename cannot be used because 
+    it is not yet defined in the namespace and cannot be. 
     
-    Example:
-        class A:
-            @asserted_types
-            def foo(x) -> B : # Error: B not yet defined
-                return x*x
+    The two typical causes are, 
+    
+    1. Using a class in an annotation of a method of that same class.
+        Example:
+            class A:
+                @checked
+                @classmethod
+                def factory(cls, ...) -> A: # Error, when the annotation is processed, A has not yet been defined
+                    ...
+        Solution:
+            class A:
+                @checked
+                @classmethod
+                def factory(cls, ...) -> type_proxy('A') # valid
+                    ...
+                    
+    2. Trying to create an annotation which refers to a class not yet defined, which itself uses an annotation
+       that refers back to _this_ class (i.e. circular references). Because the two classes refer to each other
+       the solution is not so simple as to just move the second class definition before the first.
+
+        Example:
+            class A:
+                @checked
+                def to_b(self) -> B : # Error: B not yet defined
+                    return B(self)
+                    
+            class B:
+                @checked
+                def to_a(self) -> A : # A refers to B and B refers to A, so it doesn't matter
+                    return A(self)    # which class is defined first, there's going to be an error.
                 
-        class B:
-            @asserted_types
-            def bar(y) -> A : # if B is moved before A's definition then 
-                return y**y   # the return type of B will not be defined.
-            
-    Solution:
-        class A:
-            @asserted_types
-            def foo(x) -> type_proxy("B") : # valid - invocation of B deferred until it is actually needed
-                return x*x
-            
-        class B: # unchanged
-            ...
+        Solution:
+            class A:
+                @checked
+                def to_b(self) -> type_proxy("B") : # Fixed
+                    return B(self)
+                    
+            class B:
+                ...unchanged...
     """
     
     class MetaProxy(type):
